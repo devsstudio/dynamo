@@ -1,0 +1,25 @@
+{
+  "name": "@devs-studio/dynamo",
+  "version": "1.0.5",
+  "description": "Utilidades para DynamoDB",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://JeanPaper@bitbucket.org/JeanPaper/devsstudio-dynamo.git"
+  },
+  "keywords": [
+    "dynamodb"
+  ],
+  "author": "devs-studio",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://bitbucket.org/JeanPaper/devsstudio-dynamo/issues"
+  },
+  "homepage": "https://bitbucket.org/JeanPaper/devsstudio-dynamo#readme",
+  "dependencies": {
+    "crypto-js": "^4.1.1"
+  }
+}
