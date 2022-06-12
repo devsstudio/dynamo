@@ -54,7 +54,7 @@ exports.pagination = async function (dynamo, options, parameters) {
           condition = "#" + attribute + " = :" + attribute;
           break;
         case "like":
-          condition = "begins_with(#" + attribute + ", :" + attribute + ")";
+          condition = "contains(#" + attribute + ", :" + attribute + ")";
           break;
         default:
           throw new DevsStudioDynamoError(
@@ -94,7 +94,7 @@ exports.pagination = async function (dynamo, options, parameters) {
     ExpressionAttributeNames: expressionAttributeNames,
     ExpressionAttributeValues: expressionAttributeValues,
     ExclusiveStartKey: from?.current || null,
-    Limit: parameters?.limit,
+    Limit: filterExpression.length === 0 ? parameters?.limit : null,
   };
 
   //Parmámetros
