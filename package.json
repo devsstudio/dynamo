@@ -1,6 +1,6 @@
 {
   "name": "@devs-studio/dynamo",
-  "version": "1.0.6",
+  "version": "1.0.8",
   "description": "Utilidades para DynamoDB",
   "main": "index.js",
   "scripts": {
@@ -20,6 +20,7 @@
   },
   "homepage": "https://bitbucket.org/JeanPaper/devsstudio-dynamo#readme",
   "dependencies": {
+    "@aws-sdk/util-dynamodb": "^3.121.0",
     "crypto-js": "^4.1.1"
   }
 }
