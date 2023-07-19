@@ -1,7 +1,11 @@
-const CryptoJS = require("crypto-js");
-const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
-const { DevsStudioDynamoError } = require("../classes/error");
-const secret = "any";
+import { AES } from "crypto-js";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { DevsStudioDynamoError } from "../classes/error";
+import { DynamoDB, ExecuteStatementCommandInput } from "@aws-sdk/client-dynamodb";
+import { PaginationOperator } from "../enums/enums";
+import { PaginationResponse } from "../dto/response/pagination-response";
+import { PaginationOptions } from "../dto/request/pagination-options";
+import { PaginationParams } from "../dto/request/pagination-params";
 
 // exports.pagination = async function (dynamo, options, parameters) {
 //   console.log("Parameters", parameters);
@@ -157,17 +161,19 @@ const secret = "any";
 //   }
 // };
 
-exports.pagination = async (dynamodb, options, params) => {
+export const pagination = async (dynamodb: DynamoDB, options: PaginationOptions, params: PaginationParams = null, logs = false) => {
   //Se agrega el filtro de correo (temporal)
   if (params == null) {
-    params = {};
+    params = new PaginationParams();
   }
 
-  console.log("Params:", JSON.stringify(params, null, 4));
+  if (logs) {
+    console.log("Params:", JSON.stringify(params, null, 4));
+  }
 
   //Si hay from desencriptamos
   var from = null;
-  if (params?.from) {
+  if (params.from) {
     try {
       // var fromDecoded = CryptoJS.enc.Hex.parse(
       //   parameters.from
@@ -176,9 +182,9 @@ exports.pagination = async (dynamodb, options, params) => {
 
       var fromDecoded = decodeURIComponent(params.from);
 
-      var fromDecrypted = CryptoJS.AES.decrypt(
+      var fromDecrypted = AES.decrypt(
         fromDecoded,
-        options.secret || secret
+        options.secret
       ).toString(CryptoJS.enc.Utf8);
       // console.log("decrypted", fromDecrypted);
 
@@ -202,10 +208,10 @@ exports.pagination = async (dynamodb, options, params) => {
       //Condición
       var condition = "";
       switch (definition.op) {
-        case "equal":
+        case PaginationOperator.EQUAL:
           condition = `"${attribute}" = ?`;
           break;
-        case "like":
+        case PaginationOperator.LIKE:
           condition = `Contains("${attribute}", ?)`;
           break;
         default:
@@ -221,24 +227,28 @@ exports.pagination = async (dynamodb, options, params) => {
     }
   }
 
-  var statement = `SELECT ${columns.join(", ")} FROM ${options.table}`;
+  var statement = `SELECT "${columns.join('", "')}" FROM ${options.table}`;
   if (conditions.length > 0) {
     statement += ` WHERE ${conditions.join(" AND ")}`;
   }
 
-  var stsParams = {
+  var stsParams: ExecuteStatementCommandInput = {
     Statement: statement,
-    Limit: params?.limit ? parseInt(params.limit) : null,
-    Parameters: parameters.length > 0 ? marshall(parameters) : null,
+    Limit: params.limit,
+    Parameters: parameters.length > 0 ? Object.values(marshall(parameters)) : null,
     NextToken: from?.current || null,
   };
 
-  console.log(stsParams);
+  if (logs) {
+    console.log(stsParams);
+  }
 
-  const results = await dynamodb.executeStatement(stsParams);
-
-  results.Items = unmarshallAll(results.Items);
-
+  const output = await dynamodb.executeStatement(stsParams);
+  var results: PaginationResponse = {
+    Items: unmarshallAll(output.Items),
+    Prev: null,
+    Next: null
+  }
   if (from && from?.current) {
     // console.log("from", from);
 
@@ -247,7 +257,7 @@ exports.pagination = async (dynamodb, options, params) => {
         prev: null,
         current: from.prev,
       }),
-      options.secret || secret
+      options.secret
     ).toString();
     // var prevEncoded = CryptoJS.enc.Base64.parse(prevEncrypted).toString(
     //   CryptoJS.enc.Hex
@@ -257,15 +267,15 @@ exports.pagination = async (dynamodb, options, params) => {
   }
 
   //Si hay última key encriptamos
-  if (results.NextToken) {
+  if (output.NextToken) {
     // console.log("NextToken", results.NextToken);
 
     var nextEncrypted = CryptoJS.AES.encrypt(
       JSON.stringify({
         prev: from ? from.current : null,
-        current: results.NextToken,
+        current: output.NextToken,
       }),
-      options.secret || secret
+      options.secret
     ).toString();
     // var nextEncoded = CryptoJS.enc.Base64.parse(nextEncrypted).toString(
     //   CryptoJS.enc.Hex
@@ -274,14 +284,14 @@ exports.pagination = async (dynamodb, options, params) => {
     results.Next = encodeURIComponent(nextEncrypted);
   }
 
-  delete results.LastEvaluatedKey;
-  delete results.NextToken;
-  delete results.$metadata;
+  // delete output.LastEvaluatedKey;
+  // delete output.NextToken;
+  // delete output.$metadata;
 
   return results;
 };
 
-const unmarshallAll = (items) => {
+const unmarshallAll = (items: any[]) => {
   var newItems = [];
 
   for (let item of items) {
