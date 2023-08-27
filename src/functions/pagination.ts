@@ -211,6 +211,9 @@ export const pagination = async (dynamodb: DynamoDB, options: PaginationOptions,
         case PaginationOperator.EQUAL:
           condition = `"${attribute}" = ?`;
           break;
+        case PaginationOperator.NOT_EQUAL:
+          condition = `"${attribute}" <> ?`;
+          break;
         case PaginationOperator.LIKE:
           condition = `Contains("${attribute}", ?)`;
           break;
