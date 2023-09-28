@@ -1,5 +1,5 @@
 export class DevsStudioDynamoError extends Error {
-  httpCode;
+  httpCode: any;
   constructor(code: any, message: string | undefined) {
     super(message);
     this.httpCode = code;
