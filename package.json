@@ -18,9 +18,9 @@
   "author": "Devs Studio",
   "license": "ISC",
   "bugs": {
-    "url": "https://bitbucket.org/JeanPaper/devsstudio-dynamo/issues"
+    "url": "https://github.com/devsstudio/dynamo/issues"
   },
-  "homepage": "https://bitbucket.org/JeanPaper/devsstudio-dynamo#readme",
+  "homepage": "https://github.com/devsstudio/dynamo",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.370.0",
     "@aws-sdk/util-dynamodb": "^3.121.0",
