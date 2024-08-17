@@ -18,6 +18,7 @@ import { DynamoConfig } from '../dto/data/dynamo-config';
 import { DynamoWriteItemRequest } from '../dto/request/dynamo-write-item.request';
 import { DynamoExpressionAttributeNames, DynamoObject } from '../dto/data/dynamo-object';
 import { unmarshallAndConvert } from '../helpers/dynamo.helper';
+import { DynamoQueryResponse } from '../dto/response/dynamo-query.response';
 
 export class DynamoService {
 
@@ -89,7 +90,7 @@ export class DynamoService {
     }
 
 
-    async query(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<ExecuteStatementCommandOutput> {
+    async query(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, unmarshalling: boolean = true): Promise<DynamoQueryResponse> {
         var statement = `SELECT ${expression} FROM ${table}`;
         if (conditionExpression.trim().length > 0) {
             statement += ` WHERE ${conditionExpression}`;
@@ -101,7 +102,12 @@ export class DynamoService {
         }
 
         const output = await this.dynamodb.executeStatement(stsParams);
-        return output;
+        return {
+            Items: output.Items?.map(x => unmarshalling ? unmarshall(x) : x) || [],
+            LastEvaluatedKey: output.LastEvaluatedKey,
+            NextToken: output.NextToken,
+            ConsumedCapacity: output.ConsumedCapacity
+        };
     }
 
     async queryOne(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<any> {
