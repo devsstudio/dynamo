@@ -110,9 +110,9 @@ export class DynamoService {
         };
     }
 
-    async queryOne(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<any> {
-        var output = await this.query(table, expression, conditionExpression, expressionValues);
-        return output.Items.length > 0 ? unmarshall(output.Items[0]) : null;
+    async queryOne(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, unmarshalling: boolean = true): Promise<any> {
+        var output = await this.query(table, expression, conditionExpression, expressionValues, unmarshalling);
+        return output.Items.length > 0 ? output.Items[0] : null;
     }
     async transactWriteItems(items: DynamoWriteItemRequest[]) {
 
