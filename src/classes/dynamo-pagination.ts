@@ -64,7 +64,7 @@ export class DynamoPagination {
 
     this.condition = this.getCondition(options, params.filters);
 
-    var statement = `SELECT "${this.columns.join('", "')}" FROM ${options.table}`;
+    var statement = `SELECT "${this.columns.join('", "')}" FROM "${options.table}"`;
     if (this.condition.trim().length > 0) {
       statement += ` WHERE ${this.condition}`;
     }
@@ -185,162 +185,71 @@ export class DynamoPagination {
   }
 
   private _processSimpleFilter(filter: DynamoFilterRequest, condition: string) {
+    const conn = this._getConn(filter.conn, condition);
+    const placeholder = this._setPlaceholder(filter.val);
+
     if (filter.opr === DynamoFilterOperator.CONTAINS) {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " Contains(" +
-        filter.attr +
-        ", " +
-        this._setPlaceholder(filter.val) +
-        ")"
-      );
+      return ` ${conn} Contains("${filter.attr}", ${placeholder})`;
     } else {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " " +
-        filter.opr +
-        " " +
-        this._setPlaceholder(filter.val) +
-        ")"
-      );
+      return ` ${conn} ("${filter.attr}" ${filter.opr} ${placeholder})`;
     }
   }
 
   private _processColumnFilter(filter: DynamoFilterRequest, condition: string) {
+    const conn = this._getConn(filter.conn, condition);
+
     if (filter.opr === DynamoFilterOperator.CONTAINS) {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " Contains(" +
-        filter.attr +
-        ", " +
-        filter.val +
-        ")"
-      );
+      return ` ${conn} Contains("${filter.attr}", "${filter.val}")`;
     } else {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " " +
-        filter.opr +
-        " " +
-        filter.val +
-        ")"
-      );
+      return ` ${conn} ("${filter.attr}" ${filter.opr} "${filter.val}")`;
     }
   }
 
   private _processBetweenFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
+    const vals = filter.val.split(",");
 
-    //Hacemos split de los campos
-    var vals = filter.val.split(",");
-
-    //Debe tener dos valores siempre
     if (vals.length !== 2) {
-      throw new DevsStudioDynamoError(400,
-        `filter value should be an string with two elements separated by comma, when filter type is ${filter.type}`
+      throw new DevsStudioDynamoError(
+        400,
+        `filter value should be a string with two elements separated by comma, when filter type is ${filter.type}`
       );
     }
 
-    //Creamos
+    const conn = this._getConn(filter.conn, condition);
+    const placeholder1 = this._setPlaceholder(vals[0]);
+    const placeholder2 = this._setPlaceholder(vals[1]);
+
     if (not) {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " NOT BETWEEN " +
-        this._setPlaceholder(vals[0]) +
-        " AND " +
-        this._setPlaceholder(vals[1]) +
-        ")"
-      );
+      return ` ${conn} ("${filter.attr}" NOT BETWEEN ${placeholder1} AND ${placeholder2})`;
     } else {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " BETWEEN " +
-        this._setPlaceholder(vals[0]) +
-        " AND " +
-        this._setPlaceholder(vals[1]) +
-        ")"
-      );
+      return ` ${conn} ("${filter.attr}" BETWEEN ${placeholder1} AND ${placeholder2})`;
     }
   }
 
   private _processInFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
+    const vals = filter.val.split(",");
+    const current_placeholders = vals.map(val => this._setPlaceholder(val)).join(", ");
+    const conn = this._getConn(filter.conn, condition);
 
-    var vals = filter.val.split(",");
-
-    var current_placeholders = [];
-    //Cada elemento no debe ser array
-    for (var j = 0; j < vals.length; j++) {
-      current_placeholders.push(
-        this._setPlaceholder(vals[j])
-      );
-    }
-
-    //Creamos
     if (not) {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " NOT IN (" +
-        current_placeholders.join(", ") +
-        "))"
-      );
+      return ` ${conn} ("${filter.attr}" NOT IN (${current_placeholders}))`;
     } else {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " IN (" +
-        current_placeholders.join(", ") +
-        "))"
-      );
+      return ` ${conn} ("${filter.attr}" IN (${current_placeholders}))`;
     }
   }
 
   private _processIsFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
-    //Creamos
+    const conn = this._getConn(filter.conn, condition);
+
     if (not) {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " IS NOT " + filter.val + ")"
-      );
+      return ` ${conn} ("${filter.attr}" IS NOT ${filter.val})`;
     } else {
-      return (
-        " " +
-        this._getConn(filter.conn, condition) +
-        " (" +
-        filter.attr +
-        " IS " + filter.val + ")"
-      );
+      return ` ${conn} ("${filter.attr}" IS ${filter.val})`;
     }
   }
 
   private _processSubFilter(options: DynamoPaginationOptions, filter: DynamoFilterRequest, condition: string) {
-    return (
-      " " +
-      this._getConn(filter.conn, condition) +
-      " (" +
-      this.getCondition(options, filter.subfilters) +
-      ")"
-    );
+    return ` ${this._getConn(filter.conn, condition)} (${this.getCondition(options, filter.subfilters)})`;
   }
 
   private _getConn(conn: any, condition: string) {
