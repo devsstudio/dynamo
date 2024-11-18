@@ -7,7 +7,6 @@ import {
     DeleteItemCommand,
     TransactWriteItem,
     TransactWriteItemsCommand,
-    ExecuteStatementCommandOutput,
     ExecuteStatementCommandInput
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
@@ -90,7 +89,7 @@ export class DynamoService {
     }
 
 
-    async query(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, unmarshalling: boolean = true): Promise<DynamoQueryResponse> {
+    async query(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, unmarshalling: boolean = true, nextToken: string = null): Promise<DynamoQueryResponse> {
         var statement = `SELECT ${expression} FROM ${table}`;
         if (conditionExpression.trim().length > 0) {
             statement += ` WHERE ${conditionExpression}`;
@@ -99,6 +98,7 @@ export class DynamoService {
         var stsParams: ExecuteStatementCommandInput = {
             Statement: statement,
             Parameters: expressionValues.length > 0 ? Object.values(marshall(expressionValues)) : null,
+            NextToken: nextToken
         }
 
         const output = await this.dynamodb.executeStatement(stsParams);
@@ -121,9 +121,13 @@ export class DynamoService {
             transactItems.push({
                 [item.type]: {
                     TableName: item.table,
-                    Item: marshall(item.item, {
+                    Item: item.item ? marshall(item.item, {
                         convertClassInstanceToMap: true
-                    })
+                    }) : null,
+                    Key: item.key ? marshall(item.key) : null,
+                    UpdateExpression: item.update_expression ? item.update_expression : null,
+                    ExpressionAttributeNames: item.expression_attribute_names ? item.expression_attribute_names : null,
+                    ExpressionAttributeValues: item.expression_attribute_values ? marshall(item.expression_attribute_values) : null,
                 }
             });
         }
@@ -144,5 +148,9 @@ export class DynamoService {
         var dynamoPagination = new DynamoPagination(this.dynamodb);
         const data = await dynamoPagination.pagination(options, params, logs);
         return data;
+    }
+
+    getClient(): DynamoDBClient {
+        return this.dynamoClient;
     }
 }

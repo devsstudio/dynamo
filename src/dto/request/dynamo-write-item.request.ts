@@ -1,4 +1,4 @@
-import { IsDefined, IsEnum } from "class-validator";
+import { IsDefined, IsEnum, IsOptional } from "class-validator";
 import { DynamoWriteOperationType } from "../../enums/enums";
 
 export class DynamoWriteItemRequest {
@@ -10,8 +10,20 @@ export class DynamoWriteItemRequest {
     @IsDefined()
     table: string;
 
-    @IsDefined()
-    item: any;
+    @IsOptional()
+    item?: any = null;
+
+    @IsOptional()
+    key?: { [key: string]: any } = null;
+
+    @IsOptional()
+    update_expression?: string = null;
+
+    @IsOptional()
+    expression_attribute_names?: { [key: string]: string } = null;
+
+    @IsOptional()
+    expression_attribute_values?: { [key: string]: any } = null;
 }
 
 
