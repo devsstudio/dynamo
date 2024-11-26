@@ -65,8 +65,14 @@ export class DynamoPagination {
     this.condition = this.getCondition(options, params.filters);
 
     var statement = `SELECT "${this.columns.join('", "')}" FROM "${options.table}"`;
+    if (options.index) {
+      statement += `."${options.index}"`;
+    }
     if (this.condition.trim().length > 0) {
       statement += ` WHERE ${this.condition}`;
+    }
+    if (params.order) {
+      statement += ` ORDER BY "${params.order}" ${params.direction}`;
     }
 
     var stsParams: ExecuteStatementCommandInput = {

@@ -30,3 +30,8 @@ export enum DynamoFilterLogical {
     AND = "AND",
     OR = "OR",
 }
+
+export enum DynamoPaginationDirection {
+    ASC = "ASC",
+    DESC = "DESC",
+}
