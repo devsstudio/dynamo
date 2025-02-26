@@ -1,6 +1,6 @@
 import { AES, enc } from "crypto-js";
 import { marshall } from "@aws-sdk/util-dynamodb";
-import { DynamoDB, ExecuteStatementCommandInput } from "@aws-sdk/client-dynamodb";
+import { AttributeValue, DynamoDB, ExecuteStatementCommandInput } from "@aws-sdk/client-dynamodb";
 import { DynamoPaginationOptions } from "../dto/request/dynamo-pagination.options";
 import { DynamoPaginationRequest } from "../dto/request/dynamo-pagination.request";
 import { DevsStudioDynamoError } from "./error";
@@ -20,7 +20,7 @@ export class DynamoPagination {
   }
 
   columns: string[] = [];
-  placeholders: string[] = [];
+  placeholders: DynamoValType[] = [];
   condition: string = '';
 
   async pagination(options: DynamoPaginationOptions, params: DynamoPaginationRequest = null, logs = false): Promise<DynamoPaginationResponse> {
@@ -160,7 +160,7 @@ export class DynamoPagination {
   private _verifyFilterAttribute(options: DynamoPaginationOptions, filter: DynamoFilterRequest) {
     //Verificamos tipo
     if (filter.type === DynamoFilterType.COLUMN) {
-      if (!options.definitions[filter.val]) {
+      if (typeof filter.val !== 'string' || !options.definitions[filter.val]) {
         throw new DevsStudioDynamoError(400, `attribute filter '${filter.val}' is not allowed`);
       }
     }
@@ -212,18 +212,17 @@ export class DynamoPagination {
   }
 
   private _processBetweenFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
-    const vals = filter.val.split(",");
 
-    if (vals.length !== 2) {
+    if (typeof filter.val !== 'object' || filter.val.length !== 2) {
       throw new DevsStudioDynamoError(
         400,
-        `filter value should be a string with two elements separated by comma, when filter type is ${filter.type}`
+        `filter value should be a array with two elements, when filter type is ${filter.type}`
       );
     }
 
     const conn = this._getConn(filter.conn, condition);
-    const placeholder1 = this._setPlaceholder(vals[0]);
-    const placeholder2 = this._setPlaceholder(vals[1]);
+    const placeholder1 = this._setPlaceholder(filter.val[0]);
+    const placeholder2 = this._setPlaceholder(filter.val[1]);
 
     if (not) {
       return ` ${conn} ("${filter.attr}" NOT BETWEEN ${placeholder1} AND ${placeholder2})`;
@@ -233,8 +232,16 @@ export class DynamoPagination {
   }
 
   private _processInFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
-    const vals = filter.val.split(",");
-    const current_placeholders = vals.map(val => this._setPlaceholder(val)).join(", ");
+
+    if (typeof filter.val !== 'object') {
+      throw new DevsStudioDynamoError(
+        400,
+        `filter value should be a array, when filter type is ${filter.type}`
+      );
+    }
+
+    //    const vals = filter.val.toString().split(",") as string[];
+    const current_placeholders = filter.val.map(val => this._setPlaceholder(val)).join(", ");
     const conn = this._getConn(filter.conn, condition);
 
     if (not) {
@@ -262,7 +269,7 @@ export class DynamoPagination {
     return condition.trim().length > 0 ? conn : "";
   }
 
-  private _setPlaceholder(value: string) {
+  private _setPlaceholder(value: DynamoValType) {
     this.placeholders.push(value);
     return '?';
   };

@@ -1,6 +1,7 @@
 import { IsArray, IsDefined, IsEnum, IsOptional, ValidateIf, ValidateNested } from "class-validator";
 import { DynamoFilterLogical, DynamoFilterOperator, DynamoFilterType } from "../../enums/enums";
 import { Type } from "class-transformer";
+import { AttributeValue } from "@aws-sdk/client-dynamodb";
 
 export class DynamoFilterRequest {
     @IsOptional()
@@ -13,7 +14,7 @@ export class DynamoFilterRequest {
 
     @ValidateIf((val) => val.type === DynamoFilterType.SUB)
     @IsDefined()
-    val?: string = null;
+    val?: DynamoValType = null;
 
     @ValidateIf((val) => val.type !== DynamoFilterType.SUB)
     @IsOptional()
