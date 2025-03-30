@@ -89,7 +89,7 @@ export class DynamoService {
     }
 
 
-    async query(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, unmarshalling: boolean = true, nextToken: string = null): Promise<DynamoQueryResponse> {
+    async query<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, nextToken: string = null): Promise<DynamoQueryResponse<T>> {
         var statement = `SELECT ${expression} FROM ${table}`;
         if (conditionExpression.trim().length > 0) {
             statement += ` WHERE ${conditionExpression}`;
@@ -103,15 +103,24 @@ export class DynamoService {
 
         const output = await this.dynamodb.executeStatement(stsParams);
         return {
-            Items: output.Items?.map(x => unmarshalling ? unmarshall(x) : x) || [],
+            Items: output.Items?.map(x => unmarshall(x) as T) || [],
             LastEvaluatedKey: output.LastEvaluatedKey,
             NextToken: output.NextToken,
             ConsumedCapacity: output.ConsumedCapacity
         };
     }
 
-    async queryOne(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, unmarshalling: boolean = true): Promise<any> {
-        var output = await this.query(table, expression, conditionExpression, expressionValues, unmarshalling);
+    async queryAll<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (response: DynamoQueryResponse<T>) => {}) {
+        var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
+        callback(output);
+        while (output.LastEvaluatedKey) {
+            output = await this.query<T>(table, expression, conditionExpression, expressionValues, output.NextToken);
+            callback(output);
+        }
+    }
+
+    async queryOne<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<T | null> {
+        var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
         return output.Items.length > 0 ? output.Items[0] : null;
     }
     async transactWriteItems(items: DynamoWriteItemRequest[]) {
