@@ -110,6 +110,20 @@ export class DynamoService {
         };
     }
 
+    async queryAll<T, X>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, mapFn: (item: T) => X): Promise<X[]> {
+        var items: X[] = [];
+
+        var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
+        items.push(...output.Items.map(mapFn));
+
+        while (output.LastEvaluatedKey) {
+            output = await this.query<T>(table, expression, conditionExpression, expressionValues, output.NextToken);
+            items.push(...output.Items.map(mapFn));
+        }
+
+        return items;
+    }
+
     async queryAllWithCallback<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (item: T) => void) {
         var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
         for (let item of output.Items) {
