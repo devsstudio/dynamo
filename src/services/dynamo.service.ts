@@ -124,15 +124,15 @@ export class DynamoService {
         return items;
     }
 
-    async queryAllWithCallback<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (item: T) => void) {
+    async queryAllWithCallback<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (item: T) => Promise<void>) {
         var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
         for (let item of output.Items) {
-            callback(item);
+            await callback(item);
         }
         while (output.LastEvaluatedKey) {
             output = await this.query<T>(table, expression, conditionExpression, expressionValues, output.NextToken);
             for (let item of output.Items) {
-                callback(item);
+                await callback(item);
             }
         }
     }
