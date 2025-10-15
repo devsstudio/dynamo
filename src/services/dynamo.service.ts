@@ -89,8 +89,11 @@ export class DynamoService {
     }
 
 
-    async query<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, nextToken: string = null): Promise<DynamoQueryResponse<T>> {
-        var statement = `SELECT ${expression} FROM ${table}`;
+    async query<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], nextToken: string = null): Promise<DynamoQueryResponse<T>> {
+        var statement = `SELECT ${expression} FROM "${table}"`;
+        if (index && index.length > 0) {
+            statement += `."${index}"`;
+        }
         if (conditionExpression.trim().length > 0) {
             statement += ` WHERE ${conditionExpression}`;
         }
@@ -110,37 +113,38 @@ export class DynamoService {
         };
     }
 
-    async queryAll<T, X>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, mapFn: (item: T) => X): Promise<X[]> {
+    async queryAll<T, X>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = null, mapFn: (item: T) => X): Promise<X[]> {
         var items: X[] = [];
 
-        var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
+        var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
         items.push(...output.Items.map(mapFn));
 
         while (output.LastEvaluatedKey) {
-            output = await this.query<T>(table, expression, conditionExpression, expressionValues, output.NextToken);
+            output = await this.query<T>(table, index, expression, conditionExpression, expressionValues, output.NextToken);
             items.push(...output.Items.map(mapFn));
         }
 
         return items;
     }
 
-    async queryAllWithCallback<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (item: T) => Promise<void>) {
-        var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
+    async queryAllWithCallback<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (item: T) => Promise<void>) {
+        var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
         for (let item of output.Items) {
             await callback(item);
         }
         while (output.LastEvaluatedKey) {
-            output = await this.query<T>(table, expression, conditionExpression, expressionValues, output.NextToken);
+            output = await this.query<T>(table, index, expression, conditionExpression, expressionValues, output.NextToken);
             for (let item of output.Items) {
                 await callback(item);
             }
         }
     }
 
-    async queryOne<T>(table: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<T | null> {
-        var output = await this.query<T>(table, expression, conditionExpression, expressionValues);
+    async queryOne<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<T | null> {
+        var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
         return output.Items.length > 0 ? output.Items[0] : null;
     }
+
     async transactWriteItems(items: DynamoWriteItemRequest[]) {
 
         var transactItems: TransactWriteItem[] = [];
