@@ -24,12 +24,12 @@ export class DynamoService {
     protected dynamoClient: DynamoDBClient;
     protected dynamodb: DynamoDB;
 
-    constructor(private readonly config: DynamoConfig = null) {
+    constructor(private readonly config: DynamoConfig | null) {
         this.dynamoClient = new DynamoDBClient(config || {});
         this.dynamodb = new DynamoDB(config || {});
     }
 
-    async getItem<T>(table: string, key: DynamoObject): Promise<T> {
+    async getItem<T>(table: string, key: DynamoObject): Promise<T | null> {
         const getItemCommand = new GetItemCommand({
             TableName: table,
             Key: marshall(key),
@@ -39,7 +39,7 @@ export class DynamoService {
         return data.Item ? unmarshallAndConvert<T>(data.Item) : null
     }
 
-    async putItem(table: string, item: any) {
+    async putItem(table: string, item: Record<string, any>) {
         const putItemCommand = new PutItemCommand({
             TableName: table,
             Item: marshall(item, {
@@ -73,23 +73,23 @@ export class DynamoService {
         return await this.updateItem(table, key, 'SET ' + set.join(', '), values, names);
     }
 
-    async updateItem(table: string, key: DynamoObject, updateExpression: string, expressionAttributeValues: DynamoObject = null, expressionAttributeNames: DynamoExpressionAttributeNames = null) {
+    async updateItem(table: string, key: DynamoObject, updateExpression: string, expressionAttributeValues: DynamoObject | null = null, expressionAttributeNames: DynamoExpressionAttributeNames | null = null) {
 
         const updateItemCommand = new UpdateItemCommand({
             TableName: table,
             Key: marshall(key),
             UpdateExpression: updateExpression,
-            ExpressionAttributeValues: marshall(expressionAttributeValues, {
+            ExpressionAttributeValues: expressionAttributeValues ? marshall(expressionAttributeValues, {
                 convertClassInstanceToMap: true
-            }),
-            ExpressionAttributeNames: expressionAttributeNames,
+            }) : undefined,
+            ExpressionAttributeNames: expressionAttributeNames || undefined,
         });
 
         return await this.dynamoClient.send(updateItemCommand);
     }
 
 
-    async query<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], nextToken: string = null): Promise<DynamoQueryResponse<T>> {
+    async query<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], nextToken: string | null = null): Promise<DynamoQueryResponse<T>> {
         var statement = `SELECT ${expression} FROM "${table}"`;
         if (index && index.length > 0) {
             statement += `."${index}"`;
@@ -100,8 +100,8 @@ export class DynamoService {
 
         var stsParams: ExecuteStatementCommandInput = {
             Statement: statement,
-            Parameters: expressionValues.length > 0 ? Object.values(marshall(expressionValues)) : null,
-            NextToken: nextToken
+            Parameters: expressionValues.length > 0 ? Object.values(marshall(expressionValues)) : undefined,
+            NextToken: nextToken || undefined
         }
 
         const output = await this.dynamodb.executeStatement(stsParams);
@@ -113,7 +113,7 @@ export class DynamoService {
         };
     }
 
-    async queryAll<T, X>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = null, mapFn: (item: T) => X): Promise<X[]> {
+    async queryAll<T, X>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], mapFn: (item: T) => X): Promise<X[]> {
         var items: X[] = [];
 
         var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
@@ -127,7 +127,7 @@ export class DynamoService {
         return items;
     }
 
-    async queryAllWithCallback<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = null, callback: (item: T) => Promise<void>) {
+    async queryAllWithCallback<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], callback: (item: T) => Promise<void>) {
         var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
         for (let item of output.Items) {
             await callback(item);
@@ -140,7 +140,7 @@ export class DynamoService {
         }
     }
 
-    async queryOne<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = null): Promise<T | null> {
+    async queryOne<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = []): Promise<T | null> {
         var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
         return output.Items.length > 0 ? output.Items[0] : null;
     }

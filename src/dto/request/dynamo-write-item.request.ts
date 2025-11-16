@@ -5,25 +5,25 @@ export class DynamoWriteItemRequest {
 
     @IsDefined()
     @IsEnum(DynamoWriteOperationType)
-    type: DynamoWriteOperationType;
+    type!: DynamoWriteOperationType;
 
     @IsDefined()
-    table: string;
+    table!: string;
 
     @IsOptional()
-    item?: any = null;
+    item?: Record<string, any>;
 
     @IsOptional()
-    key?: { [key: string]: any } = null;
+    key?: Record<string, any>;
 
     @IsOptional()
-    update_expression?: string = null;
+    update_expression?: string;
 
     @IsOptional()
-    expression_attribute_names?: { [key: string]: string } = null;
+    expression_attribute_names?: Record<string, string>;
 
     @IsOptional()
-    expression_attribute_values?: { [key: string]: any } = null;
+    expression_attribute_values?: Record<string, any>;
 }
 
 

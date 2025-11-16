@@ -1,4 +1,4 @@
 export class DynamoCredentials {
-    accessKeyId: string;
-    secretAccessKey: string;
+    accessKeyId!: string;
+    secretAccessKey!: string;
 }

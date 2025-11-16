@@ -1,20 +1,20 @@
-import { IsArray, IsDefined, IsEnum, IsOptional, ValidateIf, ValidateNested } from "class-validator";
+import { IsArray, IsDefined, IsEnum, IsOptional, IsString, ValidateIf, ValidateNested } from "class-validator";
 import { DynamoFilterLogical, DynamoFilterOperator, DynamoFilterType } from "../../enums/enums";
-import { Type } from "class-transformer";
-import { AttributeValue } from "@aws-sdk/client-dynamodb";
+import { Transform, Type } from "class-transformer";
 
 export class DynamoFilterRequest {
     @IsOptional()
     @IsEnum(DynamoFilterType)
     type?: DynamoFilterType = DynamoFilterType.SIMPLE;
 
-    @ValidateIf((val) => val.type === DynamoFilterType.SUB)
+    @ValidateIf((val) => val.type !== DynamoFilterType.SUB)
     @IsDefined()
-    attr?: string = null;
+    @IsString()
+    attr?: string;
 
-    @ValidateIf((val) => val.type === DynamoFilterType.SUB)
+    @ValidateIf((val) => val.type !== DynamoFilterType.SUB)
     @IsDefined()
-    val?: DynamoValType = null;
+    val?: DynamoValType;
 
     @ValidateIf((val) => val.type !== DynamoFilterType.SUB)
     @IsOptional()
@@ -23,6 +23,7 @@ export class DynamoFilterRequest {
 
     @IsOptional()
     @IsEnum(DynamoFilterLogical)
+    @Transform((val) => val.value || DynamoFilterLogical.AND)
     conn?: DynamoFilterLogical = DynamoFilterLogical.AND;
 
     @ValidateIf((val) => val.type === DynamoFilterType.SUB)

@@ -1,11 +1,11 @@
 import { AES, enc } from "crypto-js";
 import { marshall } from "@aws-sdk/util-dynamodb";
-import { AttributeValue, DynamoDB, ExecuteStatementCommandInput } from "@aws-sdk/client-dynamodb";
+import { DynamoDB, ExecuteStatementCommandInput } from "@aws-sdk/client-dynamodb";
 import { DynamoPaginationOptions } from "../dto/request/dynamo-pagination.options";
 import { DynamoPaginationRequest } from "../dto/request/dynamo-pagination.request";
 import { DevsStudioDynamoError } from "./error";
 import { DynamoFilterRequest } from "../dto/request/dynamo-filter.request";
-import { DynamoFilterOperator, DynamoFilterType } from "../enums/enums";
+import { DynamoFilterLogical, DynamoFilterOperator, DynamoFilterType } from "../enums/enums";
 import { DynamoPaginationResponse } from "../dto/response/dynamo-pagination.response";
 import { validate } from "class-validator";
 import { plainToInstance } from "class-transformer";
@@ -23,15 +23,22 @@ export class DynamoPagination {
   placeholders: DynamoValType[] = [];
   condition: string = '';
 
-  async pagination(options: DynamoPaginationOptions, params: DynamoPaginationRequest = null, logs = false): Promise<DynamoPaginationResponse> {
-    //Se agrega el filtro de correo (temporal)
-    if (params == null) {
-      params = new DynamoPaginationRequest();
+  async pagination(options: DynamoPaginationOptions, params: DynamoPaginationRequest, logs: boolean = false): Promise<DynamoPaginationResponse> {
+
+    options = plainToInstance(DynamoPaginationOptions, options);
+    params = plainToInstance(DynamoPaginationRequest, params);
+
+    //Se valida options
+    var errors = await validate(options);
+    if (errors.length > 0) {
+      throw DevsStudioDynamoError.fromValidationErrors(errors);
     }
 
-    validate(options);
-    validate(params);
-
+    //Se valida request
+    errors = await validate(params);
+    if (errors.length > 0) {
+      throw DevsStudioDynamoError.fromValidationErrors(errors);
+    }
 
     if (logs) {
       console.log("Params:", JSON.stringify(params, null, 4));
@@ -46,7 +53,7 @@ export class DynamoPagination {
 
         var fromDecrypted = AES.decrypt(
           fromDecoded,
-          options.secret
+          options.secret || DEFAULT_SECRET
         ).toString(enc.Utf8);
 
         from = JSON.parse(fromDecrypted);
@@ -56,9 +63,9 @@ export class DynamoPagination {
     }
 
     //Definiciones
-    for (let [column, definition] of Object.entries(options.definitions)) {
+    for (let definition of options.definitions) {
       if (!definition.hidden) {
-        this.columns.push(column);
+        this.columns.push(definition.name);
       }
     }
 
@@ -77,8 +84,8 @@ export class DynamoPagination {
 
     var stsParams: ExecuteStatementCommandInput = {
       Statement: statement,
-      Limit: params.limit,
-      Parameters: this.placeholders.length > 0 ? Object.values(marshall(this.placeholders)) : null,
+      Limit: params.limit || undefined,
+      Parameters: this.placeholders.length > 0 ? Object.values(marshall(this.placeholders)) : undefined,
       NextToken: from?.current || null,
     }
 
@@ -90,10 +97,9 @@ export class DynamoPagination {
       const output = await this.dynamodb.executeStatement(stsParams);
 
       var results: DynamoPaginationResponse = {
-        Items: unmarshallAll(output.Items),
-        Prev: null,
-        Next: null
-      }
+        Items: output.Items ? unmarshallAll(output.Items) : [],
+      };
+
       if (from && from?.current) {
         // console.log("from", from);
 
@@ -102,7 +108,7 @@ export class DynamoPagination {
             prev: null,
             current: from.prev,
           }),
-          options.secret
+          options.secret || DEFAULT_SECRET
         ).toString();
         results.Prev = encodeURIComponent(prevEncrypted);
       }
@@ -116,7 +122,7 @@ export class DynamoPagination {
             prev: from ? from.current : null,
             current: output.NextToken,
           }),
-          options.secret
+          options.secret || DEFAULT_SECRET
         ).toString();
 
         results.Next = encodeURIComponent(nextEncrypted);
@@ -128,8 +134,6 @@ export class DynamoPagination {
       if (err.message === 'NextToken does not match request') {
         return {
           Items: [],
-          Prev: null,
-          Next: null
         }
       } else {
         throw err;
@@ -142,7 +146,7 @@ export class DynamoPagination {
     for (let filter of filters) {
       filter = plainToInstance(DynamoFilterRequest, filter);
       //El atributo está definido
-      var definition = options.definitions[filter.attr];
+      var definition = filter.attr ? this._hasColumn(options, filter.attr) : null;
       if (filter.type === DynamoFilterType.SUB || definition) {
         condition += this._setFilter(options, filter, condition);
       }
@@ -160,7 +164,7 @@ export class DynamoPagination {
   private _verifyFilterAttribute(options: DynamoPaginationOptions, filter: DynamoFilterRequest) {
     //Verificamos tipo
     if (filter.type === DynamoFilterType.COLUMN) {
-      if (typeof filter.val !== 'string' || !options.definitions[filter.val]) {
+      if (typeof filter.val !== 'string' || !this._hasColumn(options, filter.val)) {
         throw new DevsStudioDynamoError(400, `attribute filter '${filter.val}' is not allowed`);
       }
     }
@@ -191,8 +195,9 @@ export class DynamoPagination {
   }
 
   private _processSimpleFilter(filter: DynamoFilterRequest, condition: string) {
-    const conn = this._getConn(filter.conn, condition);
-    const placeholder = this._setPlaceholder(filter.val);
+
+    const conn = this._getConn(filter.conn!, condition);
+    const placeholder = this._setPlaceholder(filter.val!!);
 
     if (filter.opr === DynamoFilterOperator.CONTAINS) {
       return ` ${conn} Contains("${filter.attr}", ${placeholder})`;
@@ -202,7 +207,8 @@ export class DynamoPagination {
   }
 
   private _processColumnFilter(filter: DynamoFilterRequest, condition: string) {
-    const conn = this._getConn(filter.conn, condition);
+
+    const conn = this._getConn(filter.conn!, condition);
 
     if (filter.opr === DynamoFilterOperator.CONTAINS) {
       return ` ${conn} Contains("${filter.attr}", "${filter.val}")`;
@@ -213,14 +219,14 @@ export class DynamoPagination {
 
   private _processBetweenFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
 
-    if (typeof filter.val !== 'object' || filter.val.length !== 2) {
+    if (filter.val !== 'object' || filter.val.length !== 2) {
       throw new DevsStudioDynamoError(
         400,
         `filter value should be a array with two elements, when filter type is ${filter.type}`
       );
     }
 
-    const conn = this._getConn(filter.conn, condition);
+    const conn = this._getConn(filter.conn!, condition);
     const placeholder1 = this._setPlaceholder(filter.val[0]);
     const placeholder2 = this._setPlaceholder(filter.val[1]);
 
@@ -241,8 +247,8 @@ export class DynamoPagination {
     }
 
     //    const vals = filter.val.toString().split(",") as string[];
-    const current_placeholders = filter.val.map(val => this._setPlaceholder(val)).join(", ");
-    const conn = this._getConn(filter.conn, condition);
+    const current_placeholders = filter.val!!.map(val => this._setPlaceholder(val)).join(", ");
+    const conn = this._getConn(filter.conn!, condition);
 
     if (not) {
       return ` ${conn} ("${filter.attr}" NOT IN (${current_placeholders}))`;
@@ -252,7 +258,8 @@ export class DynamoPagination {
   }
 
   private _processIsFilter(filter: DynamoFilterRequest, not: boolean, condition: string) {
-    const conn = this._getConn(filter.conn, condition);
+
+    const conn = this._getConn(filter.conn!, condition);
 
     if (not) {
       return ` ${conn} ("${filter.attr}" IS NOT ${filter.val})`;
@@ -262,10 +269,10 @@ export class DynamoPagination {
   }
 
   private _processSubFilter(options: DynamoPaginationOptions, filter: DynamoFilterRequest, condition: string) {
-    return ` ${this._getConn(filter.conn, condition)} (${this.getCondition(options, filter.subfilters)})`;
+    return ` ${this._getConn(filter.conn!, condition)} (${this.getCondition(options, filter.subfilters!)})`;
   }
 
-  private _getConn(conn: any, condition: string) {
+  private _getConn(conn: DynamoFilterLogical, condition: string) {
     return condition.trim().length > 0 ? conn : "";
   }
 
@@ -273,4 +280,12 @@ export class DynamoPagination {
     this.placeholders.push(value);
     return '?';
   };
+
+  private _getColumns(options: DynamoPaginationOptions): string[] {
+    return options.definitions.map((def) => def.name);
+  }
+
+  private _hasColumn(options: DynamoPaginationOptions, name: string): boolean {
+    return options.definitions.some((def) => def.name === name);
+  }
 }

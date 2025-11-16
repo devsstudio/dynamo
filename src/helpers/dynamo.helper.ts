@@ -2,14 +2,15 @@ import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { plainToInstance } from "class-transformer";
 import { DynamoWriteItemRequest } from "../dto/request/dynamo-write-item.request";
 import { DynamoWriteOperationType } from "../enums/enums";
+import { AttributeValue } from "@aws-sdk/client-dynamodb";
 
 export function construct<T>() {
     type Constructor = new () => T;
-    var type: Constructor;
+    var type: Constructor = null!;
     return type;
 }
 
-export function unmarshallAll(items: Record<string, any>[]) {
+export function unmarshallAll(items: Record<string, AttributeValue>[]) {
     var newItems = [];
 
     for (let item of items) {
@@ -21,7 +22,7 @@ export function unmarshallAll(items: Record<string, any>[]) {
 }
 
 
-export function unmarshallAndConvert<T>(item: Record<string, any>): T {
+export function unmarshallAndConvert<T>(item: Record<string, AttributeValue>): T {
     var unmarshalled = unmarshall(item);
     return plainToInstance(construct<T>(), unmarshalled);
 }

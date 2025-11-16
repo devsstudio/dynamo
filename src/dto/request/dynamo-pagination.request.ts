@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer";
-import { IsArray, IsNumber, IsOptional, ValidateNested } from "class-validator";
+import { IsArray, IsEnum, IsInt, IsNumber, IsOptional, IsPositive, IsString, ValidateNested } from "class-validator";
 import { DynamoFilterRequest } from "./dynamo-filter.request";
 import { DynamoPaginationDirection } from "../../enums/enums";
 
@@ -8,19 +8,23 @@ export class DynamoPaginationRequest {
     @IsArray()
     @Type(() => (DynamoFilterRequest))
     @ValidateNested()
-    filters: DynamoFilterRequest[];
+    filters!: DynamoFilterRequest[];
 
     @IsOptional()
-    from?: string = null;
+    @IsString()
+    from?: string;
 
     @IsOptional()
-    @IsNumber()
+    @IsInt()
+    @IsPositive()
     @Transform((val) => val.value ? val.value * 1 : null)
-    limit?: number = null;
+    limit?: number = 10;
 
     @IsOptional()
-    order?: string = null;
+    @IsString()
+    order?: string;
 
     @IsOptional()
+    @IsEnum(DynamoPaginationDirection)
     direction?: DynamoPaginationDirection = DynamoPaginationDirection.ASC;
 }
