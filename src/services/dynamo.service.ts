@@ -16,6 +16,7 @@ import { DynamoPaginationRequest } from '../dto/request/dynamo-pagination.reques
 import { DynamoConfig } from '../dto/data/dynamo-config';
 import { DynamoWriteItemRequest } from '../dto/request/dynamo-write-item.request';
 import { DynamoExpressionAttributeNames, DynamoObject } from '../dto/data/dynamo-object';
+import { DynamoOrder } from '../dto/data/dynamo-order';
 import { unmarshallAndConvert } from '../helpers/dynamo.helper';
 import { DynamoQueryResponse } from '../dto/response/dynamo-query.response';
 
@@ -89,13 +90,27 @@ export class DynamoService {
     }
 
 
-    async query<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], nextToken: string | null = null): Promise<DynamoQueryResponse<T>> {
+    async query<T>(
+        table: string,
+        index: string,
+        expression: string,
+        conditionExpression: string,
+        order: DynamoOrder | null = null,
+        expressionValues: any[] = [],
+        nextToken: string | null = null,
+    ): Promise<DynamoQueryResponse<T>> {
         var statement = `SELECT ${expression} FROM "${table}"`;
         if (index && index.length > 0) {
             statement += `."${index}"`;
         }
         if (conditionExpression.trim().length > 0) {
             statement += ` WHERE ${conditionExpression}`;
+        }
+        if (order?.field) {
+            if (!/^[A-Za-z0-9_]+$/.test(order.field)) {
+                throw new Error('invalid order field');
+            }
+            statement += ` ORDER BY "${order.field}" ${order.direction || 'ASC'}`;
         }
 
         var stsParams: ExecuteStatementCommandInput = {
@@ -113,35 +128,58 @@ export class DynamoService {
         };
     }
 
-    async queryAll<T, X>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], mapFn: (item: T) => X): Promise<X[]> {
+    async queryAll<T, X>(
+        table: string,
+        index: string,
+        expression: string,
+        conditionExpression: string,
+        order: DynamoOrder | null = null,
+        expressionValues: any[] = [],
+        mapFn: (item: T) => X,
+    ): Promise<X[]> {
         var items: X[] = [];
 
-        var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
+        var output = await this.query<T>(table, index, expression, conditionExpression, order, expressionValues, null);
         items.push(...output.Items.map(mapFn));
 
         while (output.LastEvaluatedKey) {
-            output = await this.query<T>(table, index, expression, conditionExpression, expressionValues, output.NextToken);
+            output = await this.query<T>(table, index, expression, conditionExpression, order, expressionValues, output.NextToken);
             items.push(...output.Items.map(mapFn));
         }
 
         return items;
     }
 
-    async queryAllWithCallback<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = [], callback: (item: T) => Promise<void>) {
-        var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
+    async queryAllWithCallback<T>(
+        table: string,
+        index: string,
+        expression: string,
+        conditionExpression: string,
+        order: DynamoOrder | null = null,
+        expressionValues: any[] = [],
+        callback: (item: T) => Promise<void>,
+    ) {
+        var output = await this.query<T>(table, index, expression, conditionExpression, order, expressionValues, null);
         for (let item of output.Items) {
             await callback(item);
         }
         while (output.LastEvaluatedKey) {
-            output = await this.query<T>(table, index, expression, conditionExpression, expressionValues, output.NextToken);
+            output = await this.query<T>(table, index, expression, conditionExpression, order, expressionValues, output.NextToken);
             for (let item of output.Items) {
                 await callback(item);
             }
         }
     }
 
-    async queryOne<T>(table: string, index: string, expression: string, conditionExpression: string, expressionValues: any[] = []): Promise<T | null> {
-        var output = await this.query<T>(table, index, expression, conditionExpression, expressionValues);
+    async queryOne<T>(
+        table: string,
+        index: string,
+        expression: string,
+        conditionExpression: string,
+        order: DynamoOrder | null = null,
+        expressionValues: any[] = [],
+    ): Promise<T | null> {
+        var output = await this.query<T>(table, index, expression, conditionExpression, order, expressionValues, null);
         return output.Items.length > 0 ? output.Items[0] : null;
     }
 
