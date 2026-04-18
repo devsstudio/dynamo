@@ -185,6 +185,10 @@ export class DynamoService {
 
     async transactWriteItems(items: DynamoWriteItemRequest[]) {
 
+        if (items.length > 25) {
+            throw new Error(`TransactWriteItems supports a maximum of 25 items per request. Received: ${items.length}`);
+        }
+
         var transactItems: TransactWriteItem[] = [];
         for (let item of items) {
             transactItems.push({
@@ -206,6 +210,22 @@ export class DynamoService {
         });
 
         await this.dynamoClient.send(transactWriteItemsCommand);
+    }
+
+    async transactWriteItemsWithFlush(items: DynamoWriteItemRequest[], flushSize: number = 25) {
+
+        if (flushSize <= 0) {
+            throw new Error(`flushSize must be a positive number. Received: ${flushSize}`);
+        }
+        if (flushSize > 25) {
+            throw new Error(`flushSize cannot be greater than 25 for TransactWriteItems. Received: ${flushSize}`);
+        }
+
+        const transactionItems = [...items];
+        while (transactionItems.length > 0) {
+            const batch = transactionItems.splice(0, flushSize);
+            await this.transactWriteItems(batch);
+        }
     }
 
     // async getPaginated(options: PaginationOptions, params: PaginationParams): Promise<any> {

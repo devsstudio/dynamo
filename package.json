@@ -1,6 +1,6 @@
 {
   "name": "@devs-studio/dynamo",
-  "version": "1.0.52",
+  "version": "1.0.56",
   "description": "Utilidades para DynamoDB",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
